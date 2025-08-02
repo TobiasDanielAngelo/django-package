@@ -1,5 +1,5 @@
 [project]
-name = "my_django_app"
+name = "my-django-app"
 version = "0.1.0"
 description = ""
 authors = [
