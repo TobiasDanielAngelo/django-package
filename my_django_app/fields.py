@@ -629,3 +629,9 @@ class FileField(models.FileField):
     def __init__(self, upload_to, *args, **kwargs):
         print("Hello")
         super().__init__(upload_to=upload_to, *args, **kwargs)
+
+
+class ImageField(models.FileField):
+    def __init__(self, upload_to, *args, **kwargs):
+        print("Hello")
+        super().__init__(upload_to=upload_to, *args, **kwargs)
