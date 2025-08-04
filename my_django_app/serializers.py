@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate, hashers, password_validation
 from django.contrib.auth.models import User
+from django.apps import apps
 
 
 class LoginSerializer(serializers.Serializer):
@@ -100,9 +101,13 @@ class CustomSerializer(serializers.ModelSerializer):
         )
 
         if model:
-
-            class Meta:
-                model = model
-                fields = "__all__"
-
-            cls.Meta = Meta
+            # Define Meta dynamically
+            meta_class = type(
+                "Meta",
+                (),
+                {
+                    "model": model,
+                    "fields": "__all__",
+                },
+            )
+            cls.Meta = meta_class
