@@ -6,20 +6,10 @@ from . import fields
 
 
 class CustomAdmin(admin.ModelAdmin):
-    model = None
     items = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        # if cls.model is None:
-        #     model_name = cls.__name__.removesuffix("Admin")
-        #     print("X--------------", model_name)
-        #     app_label = cls.__module__.split(".")[0]
-        #     try:
-        #         cls.model = apps.get_model(app_label, model_name)
-        #     except LookupError:
-        #         raise Exception(f"Could not infer model for {cls.__name__}")
 
         if hasattr(cls, "items") and cls.items:
             cls.inlines = [
@@ -38,22 +28,6 @@ class CustomAdmin(admin.ModelAdmin):
         if obj and obj.pk > 1000000:
             return False
         return super().has_delete_permission(request, obj)
-
-
-def register_all_admins():
-    from django.apps import apps
-    import importlib
-
-    for app_config in apps.get_app_configs():
-        try:
-            importlib.import_module(f"{app_config.name}.admin")
-        except ModuleNotFoundError:
-            continue
-
-    for cls in CustomAdmin.__subclasses__():
-        if not getattr(cls, "model", None):
-            continue
-        admin.site.register(cls.model, cls)
 
 
 def auto_create_admins(models, excluded_models=None):
@@ -81,4 +55,5 @@ def auto_create_admins(models, excluded_models=None):
                 (CustomAdmin,),
                 {"model": model_class},
             )
+            admin.site.register(model_class, admin_class)
             setattr(sys.modules[target_module], admin_name, admin_class)

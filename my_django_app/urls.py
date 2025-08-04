@@ -1,4 +1,4 @@
-def auto_generate_router_url_patterns(vs_module):
+def auto_create_urlpatterns(vs_module):
     from django.urls import include, path
     from django.conf import settings
     from django.conf.urls.static import static
