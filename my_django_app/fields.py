@@ -8,14 +8,16 @@ import re
 
 
 class AmountField(models.DecimalField):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("max_digits", 10)
         kwargs.setdefault("decimal_places", 2)
         super().__init__(*args, **kwargs)
 
 
 class DecimalField(models.DecimalField):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("max_digits", 10)
         kwargs.setdefault("decimal_places", 3)
         super().__init__(*args, **kwargs)
@@ -49,7 +51,8 @@ class ShortCharField(models.CharField):
 
 
 class ColorField(models.CharField):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("max_length", 7)
         kwargs.setdefault("default", "")
         kwargs.setdefault("blank", True)
@@ -63,7 +66,8 @@ class AutoCreatedAtField(models.DateTimeField):
     Equivalent to auto_now_add=True. Not editable.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("auto_now_add", True)
         super().__init__(*args, **kwargs)
 
@@ -74,7 +78,8 @@ class AutoUpdatedAtField(models.DateTimeField):
     Equivalent to auto_now=True. Not editable.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("auto_now", True)
         super().__init__(*args, **kwargs)
 
@@ -85,7 +90,8 @@ class DefaultNowField(models.DateTimeField):
     Useful for editable timestamps that default to current time.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("default", timezone.now)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -98,7 +104,8 @@ class DefaultTodayField(models.DateField):
     Useful for editable timestamps that default to current time.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("default", timezone.localdate)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -111,7 +118,8 @@ class OptionalDateTimeField(models.DateTimeField):
     Useful for fields that may be left empty (e.g. closed_at, due_at).
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         super().__init__(*args, **kwargs)
@@ -123,7 +131,8 @@ class OptionalDateField(models.DateField):
     Useful for fields that may be left empty (e.g. closed_at, due_at).
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         super().__init__(*args, **kwargs)
@@ -135,7 +144,8 @@ class ChoiceIntegerField(models.IntegerField):
     Automatically sets default to 0. Safe for migrations.
     """
 
-    def __init__(self, choices_list, *args, **kwargs):
+    def __init__(self, choices_list, display=False, *args, **kwargs):
+        self.display = display
         self._choices_list = choices_list  # store for deconstruction
         kwargs.setdefault("choices", choices_list)
 
@@ -170,7 +180,8 @@ class DefaultBooleanField(models.BooleanField):
         is_active = DefaultBooleanField(True)
     """
 
-    def __init__(self, default_value, *args, **kwargs):
+    def __init__(self, default_value, display=False, *args, **kwargs):
+        self.display = display
         self._default_value = default_value  # for deconstruction
         kwargs.setdefault("default", default_value)
         super().__init__(*args, **kwargs)
@@ -199,7 +210,9 @@ class OptionalLimitedTimeField(models.TimeField):
     TIME_FORMAT = "%I:%M %p"  # '3:15 PM'
     TIME_REGEX = re.compile(r"^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$", re.IGNORECASE)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
+
         def parse(t):
             if isinstance(t, str):
                 try:
@@ -251,7 +264,8 @@ class ForeignKey(models.ForeignKey):
     Base FK with auto related_name = <modelname>_<fieldname> (if not set).
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         self._to_model = to
         self._related_name_set = "related_name" in kwargs
         super().__init__(to, *args, **kwargs)
@@ -267,7 +281,8 @@ class CascadeRequiredForeignKey(ForeignKey):
     Required ForeignKey with CASCADE delete and auto related_name.
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("on_delete", models.CASCADE)
         super().__init__(to, *args, **kwargs)
 
@@ -277,7 +292,8 @@ class CascadeOptionalForeignKey(ForeignKey):
     Optional ForeignKey with CASCADE delete and auto related_name.
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("on_delete", models.CASCADE)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -289,7 +305,8 @@ class SetNullOptionalForeignKey(ForeignKey):
     Optional ForeignKey with SET_NULL delete and auto related_name.
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("on_delete", models.SET_NULL)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -301,7 +318,8 @@ class ManyToManyField(models.ManyToManyField):
     ManyToManyField with auto related_name = <modelname>_<fieldname> if not set.
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         self._to_model = to
         self._related_name_set = "related_name" in kwargs
         super().__init__(to, *args, **kwargs)
@@ -313,7 +331,8 @@ class ManyToManyField(models.ManyToManyField):
 
 
 class OptionalManyToManyField(ManyToManyField):
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("blank", True)
         super().__init__(to, *args, **kwargs)
 
@@ -323,7 +342,8 @@ class OneToOneField(models.OneToOneField):
     OneToOneField with auto related_name = <modelname>_<fieldname> if not set.
     """
 
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         self._to_model = to
         self._related_name_set = "related_name" in kwargs
         super().__init__(to, *args, **kwargs)
@@ -335,7 +355,8 @@ class OneToOneField(models.OneToOneField):
 
 
 class OptionalOneToOneField(OneToOneField):
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         kwargs.setdefault("on_delete", models.CASCADE)
@@ -343,7 +364,8 @@ class OptionalOneToOneField(OneToOneField):
 
 
 class OptionalSetNullOneToOneField(OneToOneField):
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         kwargs.setdefault("on_delete", models.SET_NULL)
@@ -351,7 +373,8 @@ class OptionalSetNullOneToOneField(OneToOneField):
 
 
 class OneToOneField(OneToOneField):
-    def __init__(self, to, *args, **kwargs):
+    def __init__(self, to, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("on_delete", models.CASCADE)
         super().__init__(to, *args, **kwargs)
 
@@ -361,7 +384,8 @@ class OptionalEmailField(models.EmailField):
     EmailField with null=True, blank=True by default.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         super().__init__(*args, **kwargs)
@@ -372,7 +396,8 @@ class OptionalURLField(models.URLField):
     EmailField with null=True, blank=True by default.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         super().__init__(*args, **kwargs)
@@ -389,7 +414,8 @@ class LimitedDecimalField(models.DecimalField):
         LimitedDecimalField(5)           # min=5, no max
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         validators = kwargs.pop("validators", [])
 
         # Defaults
@@ -439,7 +465,8 @@ class OptionalLimitedDecimalField(models.DecimalField):
         OptionalLimitedDecimalField(5)           # min=5, no max
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
         validators = kwargs.pop("validators", [])
 
         # Defaults
@@ -487,8 +514,10 @@ class BaseArrayField(models.JSONField):
         base_type=str,
         min_items=None,
         max_items=None,
+        display=False,
         **kwargs,
     ):
+        self.display = display
         kwargs.setdefault("blank", True)
         kwargs.setdefault("default", list)
 
@@ -562,17 +591,22 @@ class BaseArrayField(models.JSONField):
 
 
 class StringArrayField(BaseArrayField):
-    def __init__(self, **kwargs):
+    def __init__(self, display=False, **kwargs):
+        self.display = display
         super().__init__(base_type=str, **kwargs)
 
 
 class NumberArrayField(BaseArrayField):
-    def __init__(self, **kwargs):
+    def __init__(self, display=False, **kwargs):
+        self.display = display
         super().__init__(base_type=int, **kwargs)
 
 
 class ChoicesStringArrayField(BaseArrayField):
-    def __init__(self, choices=None, min_items=None, max_items=None, **kwargs):
+    def __init__(
+        self, choices=None, min_items=None, max_items=None, display=False, **kwargs
+    ):
+        self.display = display
         flat_choices = [
             (c[0], c[1]) if isinstance(c, (list, tuple)) else (c, str(c))
             for c in choices or []
@@ -600,7 +634,10 @@ class ChoicesStringArrayField(BaseArrayField):
 
 
 class ChoicesNumberArrayField(BaseArrayField):
-    def __init__(self, choices=None, min_items=None, max_items=None, **kwargs):
+    def __init__(
+        self, choices=None, min_items=None, max_items=None, display=False, **kwargs
+    ):
+        self.display = display
         flat_choices = [
             c if isinstance(c, (list, tuple)) else (c, str(c)) for c in choices or []
         ]
@@ -626,12 +663,14 @@ class ChoicesNumberArrayField(BaseArrayField):
 
 
 class FileField(models.FileField):
-    def __init__(self, upload_to, *args, **kwargs):
+    def __init__(self, upload_to, display=False, *args, **kwargs):
+        self.display = display
         super().__init__(upload_to=upload_to, *args, **kwargs)
 
 
 class ImageField(models.FileField):
-    def __init__(self, upload_to, *args, **kwargs):
+    def __init__(self, upload_to, display=False, *args, **kwargs):
+        self.display = display
         super().__init__(upload_to=upload_to, *args, **kwargs)
 
 
