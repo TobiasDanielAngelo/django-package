@@ -5,7 +5,6 @@ from django.core.exceptions import ValidationError
 from django import forms
 from datetime import datetime, time
 import re
-import inflect
 
 
 class AmountField(models.DecimalField):
@@ -724,19 +723,7 @@ class ImageField(models.FileField):
         super().__init__(upload_to=upload_to, *args, **kwargs)
 
 
-class CustomModelMeta(models.base.ModelBase):
-    def __new__(cls, name, bases, attrs):
-        new_class = super().__new__(cls, name, bases, attrs)
-        meta = getattr(new_class, "Meta", None)
-
-        if meta and not hasattr(meta, "verbose_name_plural"):
-            verbose_name = getattr(meta, "verbose_name", name.lower())
-            meta.verbose_name_plural = inflect.engine().plural(verbose_name)
-
-        return new_class
-
-
-class CustomModel(models.Model, metaclass=CustomModelMeta):
+class CustomModel(models.Model):
     created_at = AutoCreatedAtField()
     updated_at = AutoUpdatedAtField()
 

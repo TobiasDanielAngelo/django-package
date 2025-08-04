@@ -35,19 +35,3 @@ class CustomAdmin(admin.ModelAdmin):
         if obj and obj.pk > 1000000:
             return False
         return super().has_delete_permission(request, obj)
-
-
-class SettingAdmin(CustomAdmin):
-    pass
-
-
-for app_config in apps.get_app_configs():
-    try:
-        importlib.import_module(f"{app_config.name}.admin")
-    except ModuleNotFoundError:
-        continue
-
-for cls in CustomAdmin.__subclasses__():
-    if not getattr(cls, "model", None):
-        continue
-    admin.site.register(cls.model, cls)
