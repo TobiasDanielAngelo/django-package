@@ -2,6 +2,9 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate, hashers, password_validation
 from django.contrib.auth.models import User
 from django.apps import apps
+import sys
+import inspect
+from . import fields
 
 
 class LoginSerializer(serializers.Serializer):
@@ -111,3 +114,32 @@ class CustomSerializer(serializers.ModelSerializer):
                 },
             )
             cls.Meta = meta_class
+
+
+def auto_create_serializers(models, excluded_models=None):
+
+    frame = inspect.stack()[1]
+    caller_module = inspect.getmodule(frame[0])
+    target_module = caller_module.__name__
+
+    excluded_models = excluded_models or []
+
+    for name in dir(models):
+        obj = getattr(models, name)
+        if name in excluded_models:
+            continue
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, fields.CustomModel)
+            and obj.__module__ == models.__name__
+        ):
+            model_class = obj
+            model_name = model_class.__name__
+            serializer_name = f"{model_name}Serializer"
+            serializer = type(
+                name + "Serializer",
+                (CustomSerializer,),
+                {},
+            )
+
+            setattr(sys.modules[target_module], serializer_name, serializer)

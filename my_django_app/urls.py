@@ -15,7 +15,12 @@ def auto_generate_router_url_patterns(vs_module):
     for attr_name in dir(vs_module):
         viewset = getattr(vs_module, attr_name)
 
-        if isinstance(viewset, type) and issubclass(viewset, ViewSetMixin):
+        if (
+            isinstance(viewset, type)
+            and issubclass(viewset, ViewSetMixin)
+            and attr_name != "CustomModelViewSet"
+            and attr_name != "viewset"
+        ):
             base = re.sub(r"ViewSet$", "", attr_name)
             if base != "CustomModel":
                 kebab = camel_to_kebab(base)

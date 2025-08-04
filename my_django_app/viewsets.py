@@ -9,6 +9,9 @@ import json
 from lzstring import LZString
 from django.db.models import CharField
 from django.utils.module_loading import import_string
+from . import fields
+import sys
+import inspect
 
 
 class CustomAuthentication(TokenAuthentication):
@@ -168,3 +171,34 @@ class CustomModelViewSet(viewsets.ModelViewSet):
         if queryset is not None:
             serializer = self.get_serializer(queryset, many=True)
             return self.get_paginated_response(serializer.data)
+
+
+def auto_create_viewsets(models, excluded_models=None):
+
+    frame = inspect.stack()[1]
+    caller_module = inspect.getmodule(frame[0])
+    target_module = caller_module.__name__
+
+    excluded_models = excluded_models or []
+
+    for name in dir(models):
+        obj = getattr(models, name)
+        if name in excluded_models:
+            continue
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, fields.CustomModel)
+            and obj.__module__ == models.__name__
+        ):
+            model_class = obj
+            model_name = model_class.__name__
+            viewset_name = f"{model_name}ViewSet"
+            viewset = type(
+                name + "ViewSet",
+                (CustomModelViewSet,),
+                {
+                    "queryset": model_class.objects.all(),
+                },
+            )
+
+            setattr(sys.modules[target_module], viewset_name, viewset)
