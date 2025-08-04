@@ -1,5 +1,4 @@
 from django.contrib import admin
-import importlib
 from django.apps import apps
 
 
@@ -35,3 +34,19 @@ class CustomAdmin(admin.ModelAdmin):
         if obj and obj.pk > 1000000:
             return False
         return super().has_delete_permission(request, obj)
+
+
+def register_all_admins():
+    from django.apps import apps
+    import importlib
+
+    for app_config in apps.get_app_configs():
+        try:
+            importlib.import_module(f"{app_config.name}.admin")
+        except ModuleNotFoundError:
+            continue
+
+    for cls in CustomAdmin.__subclasses__():
+        if not getattr(cls, "model", None):
+            continue
+        admin.site.register(cls.model, cls)
