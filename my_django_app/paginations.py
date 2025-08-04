@@ -1,7 +1,7 @@
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.db.models import DateTimeField, DateField, TimeField
-from core.fields import AmountField
+from .fields import AmountField
 import math
 
 
