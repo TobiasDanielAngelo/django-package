@@ -27,3 +27,16 @@ def auto_generate_router_url_patterns(vs_module):
     ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
     return urlpatterns
+
+
+def auth_url_patterns():
+    from django.urls import path
+    from . import views
+
+    urlpatterns = [
+        path("logout", views.CookieLogoutView.as_view(), name="logout"),
+        path("login", views.CookieLoginView.as_view(), name="login"),
+        path("reauth", views.CookieReauthView.as_view(), name="reauth"),
+    ]
+
+    return urlpatterns
