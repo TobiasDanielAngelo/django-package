@@ -228,3 +228,8 @@ def GET_ENV_LIST(key: str) -> list[str]:
 def GET_ENV(key: str, default: str = "") -> str:
     raw = os.environ.get(key, default)
     return raw.strip()
+
+
+def GET_BOOL(key: str, default: str = "False") -> bool:
+    val = os.environ.get(key, default).lower()
+    return val in ("true", "1", "yes")
