@@ -8,6 +8,7 @@ from django.db.models import Q
 import json
 from lzstring import LZString
 from django.db.models import CharField
+from django.utils.module_loading import import_string
 
 
 class CustomAuthentication(TokenAuthentication):
@@ -39,6 +40,24 @@ class CustomModelViewSet(viewsets.ModelViewSet):
         CustomDjangoModelPermission,
     ]
     authentication_classes = (CustomAuthentication,)
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if cls.__name__ == "CustomModelViewSet":
+            return
+
+        model_name = cls.__name__.replace("ViewSet", "")
+        model = next((m for m in apps.get_models() if m.__name__ == model_name), None)
+
+        if model:
+            cls.queryset = model.objects.all()
+
+            try:
+                serializer_path = f"{model.__module__.rsplit('.', 1)[0]}.serializers.{model_name}Serializer"
+                cls.serializer_class = import_string(serializer_path)
+            except ImportError:
+                pass
 
     def list(self, request, *args, **kwargs):
         params = self.request.query_params.copy()
