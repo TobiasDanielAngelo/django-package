@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate, hashers, password_validation
 from django.contrib.auth.models import User
-from .models import *
 
 
 class LoginSerializer(serializers.Serializer):
@@ -88,4 +87,22 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CustomSerializer(serializers.ModelSerializer):
-    pass
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if cls.__name__ == "BaseSerializer":
+            return  # Skip the base
+
+        model_name = cls.__name__.replace("Serializer", "")
+        model = next(
+            (m for m in apps.get_models() if m.__name__ == model_name),
+            None,
+        )
+
+        if model:
+
+            class Meta:
+                model = model
+                fields = "__all__"
+
+            cls.Meta = Meta

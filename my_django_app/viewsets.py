@@ -1,5 +1,4 @@
 from rest_framework import viewsets, response
-from .models import *
 from .serializers import *
 from .permissions import CustomDjangoModelPermission
 from knox.auth import TokenAuthentication
