@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate, hashers, password_validation
 from django.contrib.auth.models import User
 from django.apps import apps
+from django.db import models
 import sys
 import inspect
 from . import fields
@@ -91,6 +92,72 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CustomSerializer(serializers.ModelSerializer):
+
+    def get_fields(self):
+        fields = super().get_fields()
+        model = getattr(self.Meta, "model", None)
+        reverse_fields = {
+            rel.get_accessor_name()
+            for rel in model._meta.get_fields()
+            if (rel.one_to_many or rel.one_to_one)
+            and rel.auto_created
+            and not rel.concrete
+        }
+        denylist = {
+            "Meta",
+            "DoesNotExist",
+            "MultipleObjectsReturned",
+            "save_base",
+            "asave",
+            "adelete",
+            "check",
+            "clean_fields",
+            "from_db",
+            "prepare_database_save",
+            "unique_error_message",
+            "validate_constraints",
+            "get_constraints",
+            "arefresh_from_db",
+            "date_error_message",
+            "get_next_by_created_at",
+            "get_previous_by_created_at",
+            "clean",
+            "save",
+            "full_clean",
+            "validate_unique",
+            "delete",
+            "refresh_from_db",
+            "get_next_by_updated_at",
+            "get_previous_by_updated_at",
+            "get_deferred_fields",
+            "serializable_value",
+        }
+        if model:
+            model_instance = model()
+            for attr in dir(model_instance):
+                if attr.startswith("_"):
+                    continue
+                if attr in fields:
+                    continue
+                method = getattr(model_instance, attr, None)
+                if not callable(method):
+                    continue
+                if hasattr(method, "__self__") and isinstance(
+                    method.__self__, models.Field
+                ):
+                    continue
+                if attr in denylist or attr in reverse_fields:
+                    continue
+                fields[attr] = serializers.SerializerMethodField()
+
+                def make_method(name):
+                    return lambda self, obj: getattr(obj, name)()
+
+                method_name = f"get_{attr}"
+                if not hasattr(self.__class__, method_name):
+                    setattr(self.__class__, method_name, make_method(attr))
+        return fields
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
