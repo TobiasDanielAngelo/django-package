@@ -16,55 +16,6 @@ class AmountField(models.DecimalField):
         super().__init__(*args, **kwargs)
 
 
-class LimitedIntegerField(models.DecimalField):
-    """
-    A IntegerField with optional min, max, and default value via positional args.
-
-    Usage:
-        LimitedIntegerField(0, 10, 5)     # min=0, max=10, default=5
-        LimitedIntegerField(None, 100, 50)
-        LimitedIntegerField(0, None, 1)
-        LimitedIntegerField(5)           # min=5, no max
-    """
-
-    def __init__(self, display=False, *args, **kwargs):
-        self.display = display
-        validators = kwargs.pop("validators", [])
-
-        # Defaults
-        min_value = None
-        max_value = None
-        default_value = None
-
-        # Unpack arguments
-        if len(args) == 1:
-            min_value = args[0]
-        elif len(args) == 2:
-            min_value, max_value = args
-        elif len(args) == 3:
-            min_value, max_value, default_value = args
-        elif len(args) > 3:
-            raise TypeError("LimitedIntegerField accepts up to 3 positional arguments.")
-
-        # Add validators
-        if min_value is not None:
-            validators.append(MinValueValidator(min_value))
-        if max_value is not None:
-            validators.append(MaxValueValidator(max_value))
-
-        # Validate default is within range
-        if default_value is not None:
-            if (min_value is not None and default_value < min_value) or (
-                max_value is not None and default_value > max_value
-            ):
-                raise ValueError("Default value is out of bounds.")
-            kwargs.setdefault("default", default_value)
-
-        kwargs["validators"] = validators
-        kwargs.setdefault("max_digits", 10)
-        super().__init__(**kwargs)
-
-
 class DecimalField(models.DecimalField):
     def __init__(self, display=False, *args, **kwargs):
         self.display = display
@@ -501,6 +452,54 @@ class LimitedDecimalField(models.DecimalField):
         kwargs.setdefault("max_digits", 10)
         kwargs.setdefault("decimal_places", 2)
 
+        super().__init__(**kwargs)
+
+
+class LimitedIntegerField(models.IntegerField):
+    """
+    A IntegerField with optional min, max, and default value via positional args.
+
+    Usage:
+        LimitedIntegerField(0, 10, 5)     # min=0, max=10, default=5
+        LimitedIntegerField(None, 100, 50)
+        LimitedIntegerField(0, None, 1)
+        LimitedIntegerField(5)           # min=5, no max
+    """
+
+    def __init__(self, display=False, *args, **kwargs):
+        self.display = display
+        validators = kwargs.pop("validators", [])
+
+        # Defaults
+        min_value = None
+        max_value = None
+        default_value = None
+
+        # Unpack arguments
+        if len(args) == 1:
+            min_value = args[0]
+        elif len(args) == 2:
+            min_value, max_value = args
+        elif len(args) == 3:
+            min_value, max_value, default_value = args
+        elif len(args) > 3:
+            raise TypeError("LimitedIntegerField accepts up to 3 positional arguments.")
+
+        # Add validators
+        if min_value is not None:
+            validators.append(MinValueValidator(min_value))
+        if max_value is not None:
+            validators.append(MaxValueValidator(max_value))
+
+        # Validate default is within range
+        if default_value is not None:
+            if (min_value is not None and default_value < min_value) or (
+                max_value is not None and default_value > max_value
+            ):
+                raise ValueError("Default value is out of bounds.")
+            kwargs.setdefault("default", default_value)
+
+        kwargs["validators"] = validators
         super().__init__(**kwargs)
 
 
