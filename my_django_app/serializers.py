@@ -135,6 +135,8 @@ class CustomSerializer(serializers.ModelSerializer):
         if model:
             model_instance = model()
             for attr in dir(model_instance):
+                if attr.startswith("get_") and attr.endswith("_display"):
+                    continue
                 if attr.startswith("_"):
                     continue
                 if attr in fields:
