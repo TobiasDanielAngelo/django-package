@@ -139,7 +139,7 @@ class CustomSerializer(serializers.ModelSerializer):
                     continue
                 if attr in fields:
                     continue
-                method = getattr(model_instance, attr, None)
+                method = getattr(model, attr, None)
                 if not callable(method):
                     continue
                 if hasattr(method, "__self__") and isinstance(

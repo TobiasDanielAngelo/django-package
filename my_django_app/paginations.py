@@ -2,6 +2,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.db.models import DateTimeField, DateField, TimeField
 from .fields import AmountField
+from django.db.models.fields import Field
 import math
 
 
@@ -35,6 +36,8 @@ class CustomPagination(PageNumberPagination):
         time_fields = []
         if self.model:
             for field in self.model._meta.get_fields():
+                if not isinstance(field, Field):
+                    continue
                 field_name = field.name
                 values = set()
                 if field.is_relation and field.many_to_one or field.many_to_many:
