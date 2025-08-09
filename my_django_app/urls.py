@@ -14,7 +14,6 @@ def auto_create_urlpatterns(vs_module):
 
     for attr_name in dir(vs_module):
         viewset = getattr(vs_module, attr_name)
-
         if (
             isinstance(viewset, type)
             and issubclass(viewset, ViewSetMixin)
@@ -25,7 +24,7 @@ def auto_create_urlpatterns(vs_module):
             if base != "CustomModel":
                 kebab = camel_to_kebab(base)
                 route = inflector.plural(kebab)
-                router.register(route, viewset, basename=route)
+                router.register(route, viewset, basename=viewset.__module__ + route)
 
     urlpatterns = [
         path("", include(router.urls)),

@@ -12,6 +12,8 @@ from django.utils.module_loading import import_string
 from . import fields
 import sys
 import inspect
+from django.db.models import F, Value
+from django.db.models.functions import Concat
 
 
 class CustomAuthentication(TokenAuthentication):
@@ -36,6 +38,35 @@ def decode_query_param(encoded_param):
     return json.loads(lz.decompressFromEncodedURIComponent(encoded_param))
 
 
+def get_display_fields(model, visited=None, depth=0, max_depth=2):
+    if visited is None:
+        visited = set()
+    if model in visited or depth > max_depth:
+        return []
+
+    visited.add(model)
+
+    result = []
+    for field in model._meta.get_fields():
+        if getattr(field, "display", False):  # you'd need this in Python
+            if field.is_relation and not field.many_to_many:
+                rel_model = field.related_model
+                # recursively fetch related model's display fields
+                rel_fields = get_display_fields(
+                    rel_model, visited, depth + 1, max_depth
+                )
+                result.extend([f"{field.name}__{rf}" for rf in rel_fields])
+            else:
+                result.append(field.name)
+    return result
+
+
+def annotate_display_name(queryset):
+    display_fields = get_display_fields(queryset.model)
+    print(display_fields)
+    return queryset
+
+
 class CustomModelViewSet(viewsets.ModelViewSet):
     permission_classes = [
         # AllowAny,
@@ -51,11 +82,18 @@ class CustomModelViewSet(viewsets.ModelViewSet):
             return
 
         model_name = cls.__name__.replace("ViewSet", "")
-        model = next((m for m in apps.get_models() if m.__name__ == model_name), None)
+        model = next(
+            (
+                m
+                for m in apps.get_models()
+                if m.__name__ == model_name
+                and m._meta.app_label == cls.queryset.model._meta.app_label
+            ),
+            None,
+        )
 
         if model:
             cls.queryset = model.objects.all()
-
             try:
                 serializer_path = f"{model.__module__.rsplit('.', 1)[0]}.serializers.{model_name}Serializer"
                 cls.serializer_class = import_string(serializer_path)
@@ -125,7 +163,7 @@ class CustomModelViewSet(viewsets.ModelViewSet):
                     filter_kwargs[key] = value
 
         queryset = (
-            self.filter_queryset(self.get_queryset())
+            annotate_display_name(self.filter_queryset(self.get_queryset()))
             .filter(**filter_kwargs)
             .filter(search_q)
             .exclude(**exclude_kwargs)
@@ -174,7 +212,7 @@ class CustomModelViewSet(viewsets.ModelViewSet):
 
 
 def auto_create_viewsets(models, excluded_models=None):
-
+    all_viewsets = []
     frame = inspect.stack()[1]
     caller_module = inspect.getmodule(frame[0])
     target_module = caller_module.__name__
@@ -197,8 +235,10 @@ def auto_create_viewsets(models, excluded_models=None):
                 name + "ViewSet",
                 (CustomModelViewSet,),
                 {
+                    "__module__": target_module,
                     "queryset": model_class.objects.all(),
                 },
             )
-
+            all_viewsets.append(viewset)
             setattr(sys.modules[target_module], viewset_name, viewset)
+    return all_viewsets
