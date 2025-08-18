@@ -41,6 +41,7 @@ def auth_url_patterns():
         path("logout", views.CookieLogoutView.as_view(), name="logout"),
         path("login", views.CookieLoginView.as_view(), name="login"),
         path("reauth", views.CookieReauthView.as_view(), name="reauth"),
+        path("csrf/", views.csrf),
     ]
 
     return urlpatterns

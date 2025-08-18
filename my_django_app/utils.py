@@ -6,7 +6,7 @@ from django.db.models.functions import (
     ExtractWeekDay,
     ExtractQuarter,
 )
-from django.db.models import CharField, F, Value, Func, Count, Min, Max, Sum
+from django.db.models import CharField, F, Value, Func, Count, Min, Max, Sum, Q
 from django.db.models.functions import Concat, Cast, Right
 from dateutil.relativedelta import relativedelta
 import re
@@ -15,6 +15,9 @@ from django.utils import timezone
 import socket
 import os
 from dotenv import load_dotenv
+from django.db.models import Aggregate, FloatField, F, ExpressionWrapper
+from django.db.models.fields.related import ForeignObjectRel, ManyToManyRel
+from django.db import models
 
 
 def obj_list_to_obj_val(**list):
@@ -233,3 +236,61 @@ def GET_ENV(key: str, default: str = "") -> str:
 def GET_BOOL(key: str, default: str = "False") -> bool:
     val = os.environ.get(key, default).lower()
     return val in ("true", "1", "yes")
+
+
+class SumProduct(Aggregate):
+    function = "SUM"
+    template = "%(function)s(%(expressions)s)"
+    output_field = FloatField()
+
+    def __init__(self, field1, field2, **extra):
+        expression = ExpressionWrapper(F(field1) * F(field2), output_field=FloatField())
+        super().__init__(expression, **extra)
+
+
+def get_key(choices, value):
+    return next((k for k, v in choices if v == value), None)
+
+
+def invert_choices(choices):
+    return {v: k for k, v in choices}
+
+
+def to_money(n):
+    return f"\u20b1{n:.2f}"
+
+
+def annotate_most_frequent(queryset):
+    model = queryset.model
+    related_counts = {}
+
+    for field in model._meta.get_fields():
+        # Reverse ForeignKey or ManyToMany (related_name)
+        if isinstance(field, (ForeignObjectRel, ManyToManyRel)):
+            related_name = field.get_accessor_name()
+            related_counts[f"links_{related_name}"] = Count(related_name, distinct=True)
+
+    # Annotate all counts
+    annotated_qs = queryset.annotate(**related_counts)
+
+    # Build total sum expression
+    if related_counts:
+        total_expr = None
+        for name in related_counts.keys():
+            total_expr = F(name) if total_expr is None else total_expr + F(name)
+        annotated_qs = annotated_qs.annotate(total_links=total_expr)
+        annotated_qs = annotated_qs.order_by("-total_links")
+
+    return annotated_qs
+
+
+def CannotEqual(field1: str, field2: str, model_name: str = None, name: str = None):
+    """
+    Ensure field1 != field2.
+    Automatically includes model name in the constraint name for uniqueness.
+    """
+    if not name:
+        if not model_name:
+            raise ValueError("model_name is required if name is not provided")
+        name = f"{model_name.lower()}_cannot_equal_{field1}_{field2}"
+    return models.CheckConstraint(check=~Q(**{field1: F(field2)}), name=name)

@@ -6,10 +6,20 @@ from . import fields
 
 
 class CustomAdmin(admin.ModelAdmin):
+    model = None
     items = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+
+        # if cls.model is None:
+        #     model_name = cls.__name__.removesuffix("Admin")
+        #     print("X--------------", model_name)
+        #     app_label = cls.__module__.split(".")[0]
+        #     try:
+        #         cls.model = apps.get_model(app_label, model_name)
+        #     except LookupError:
+        #         raise Exception(f"Could not infer model for {cls.__name__}")
 
         if hasattr(cls, "items") and cls.items:
             cls.inlines = [
@@ -25,7 +35,7 @@ class CustomAdmin(admin.ModelAdmin):
         return [field.name for field in self.model._meta.fields]
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.pk > 1000000:
+        if obj and obj.pk < 0:
             return False
         return super().has_delete_permission(request, obj)
 

@@ -12,8 +12,8 @@ from django.utils.module_loading import import_string
 from . import fields
 import sys
 import inspect
-from django.db.models import F, Value
 from django.db.models.functions import Concat
+from django.db.models import BooleanField, Value, F, Case, When, CharField
 
 
 class CustomAuthentication(TokenAuthentication):
@@ -48,23 +48,113 @@ def get_display_fields(model, visited=None, depth=0, max_depth=2):
 
     result = []
     for field in model._meta.get_fields():
-        if getattr(field, "display", False):  # you'd need this in Python
-            if field.is_relation and not field.many_to_many:
-                rel_model = field.related_model
-                # recursively fetch related model's display fields
-                rel_fields = get_display_fields(
-                    rel_model, visited, depth + 1, max_depth
-                )
-                result.extend([f"{field.name}__{rf}" for rf in rel_fields])
-            else:
-                result.append(field.name)
+
+        if hasattr(field, "display"):  # you'd need this in Python
+            if field.display:
+                if field.is_relation and not field.many_to_many:
+                    rel_model = field.related_model
+                    # recursively fetch related model's display fields
+                    rel_fields = get_display_fields(
+                        rel_model, visited, depth + 1, max_depth
+                    )
+                    result.extend([f"{field.name}__{rf}" for rf in rel_fields])
+                else:
+                    result.append(field.name)
     return result
 
 
 def annotate_display_name(queryset):
     display_fields = get_display_fields(queryset.model)
-    print(display_fields)
-    return queryset
+
+    if not display_fields:
+        return queryset.annotate(
+            display_name=Concat(
+                Value(f"{queryset.model.__name__} # "),
+                F("pk"),
+                output_field=CharField(),
+            )
+        )
+
+    if len(display_fields) == 1:
+        return queryset.annotate(display_name=F(display_fields[0]))
+
+    concat_args = []
+    for i, field_name in enumerate(display_fields):
+        try:
+            field = queryset.model._meta.get_field(field_name)
+        except FieldDoesNotExist:
+            continue
+        if isinstance(field, BooleanField):
+            # Use Case/When: if True -> display title_cased field name, else empty string
+            title_cased = field_name
+            if field_name.lower().startswith("is"):
+                title_cased = field_name[2:]
+            title_cased = title_cased.replace("_", " ").strip().title()
+
+            case_expr = Case(
+                When(**{field_name: True}, then=Value(title_cased)),
+                default=Value(""),
+                output_field=CharField(),
+            )
+            concat_args.append(case_expr)
+        else:
+            if isinstance(field, fields.ChoiceIntegerField):
+                concat_args.append(
+                    Case(
+                        *[
+                            When(**{field_name: choice_val}, then=Value(choice_label))
+                            for choice_val, choice_label in field.choices
+                        ],
+                        output_field=CharField(),
+                    )
+                )
+            else:
+                concat_args.append(F(field_name))
+
+        # Append space except after last field
+        if i < len(display_fields) - 1:
+            concat_args.append(Value(" "))
+
+    if len(concat_args) == 0:
+        return queryset  # nothing to annotate
+
+    if len(concat_args) == 1:
+        single = concat_args[0]
+        # If single is F(field_name), annotate directly
+        if isinstance(single, F):
+            return queryset.annotate(display_name=single)
+        else:
+            # For Value or expressions, annotate directly
+            return queryset.annotate(display_name=single)
+    else:
+        return queryset.annotate(
+            display_name=Concat(*concat_args, output_field=CharField())
+        )
+
+
+def get_char_fields(model, prefix="", depth=0, max_depth=2):
+    if depth > max_depth:
+        return []
+
+    char_fields = []
+    for f in model._meta.get_fields():
+        if isinstance(f, CharField):
+            char_fields.append(f"{prefix}{f.name}")
+        elif (
+            f.is_relation
+            and hasattr(f, "related_model")
+            and f.related_model != model
+            and not f.many_to_many
+        ):
+            char_fields.extend(
+                get_char_fields(
+                    f.related_model,
+                    prefix=f"{prefix}{f.name}__",
+                    depth=depth + 1,
+                    max_depth=max_depth,
+                )
+            )
+    return char_fields
 
 
 class CustomModelViewSet(viewsets.ModelViewSet):
@@ -119,19 +209,30 @@ class CustomModelViewSet(viewsets.ModelViewSet):
         search_q = Q()
         model_fields = [f.name for f in self.queryset.model._meta.get_fields()]
         for key, value in params.items():
+            search_terms = value.split()
+            if key == "display_name__search":
+                for term in search_terms:
+                    search_q &= Q(**{f"display_name__icontains": term})
             base_key = key.split("__")[0]
             if base_key not in model_fields:
                 continue
             if "__search" in key:
                 field_name = key.replace("__search", "")
-                search_terms = value.split()
                 try:
                     field = self.queryset.model._meta.get_field(field_name)
-                    for term in search_terms:
-                        search_q &= Q(**{f"{field_name}__icontains": term})
+                    if field.is_relation:
+                        char_fields = get_char_fields(field.related_model)
+                        for term in search_terms:
+                            for rel_char in char_fields:
+                                lookup = f"{field.name}__{rel_char}__icontains"
+                                search_q |= Q(**{lookup: term})
+                    else:
+                        for term in search_terms:
+                            search_q &= Q(**{f"{field_name}__icontains": term})
                 except FieldDoesNotExist:
                     for term in search_terms:
                         search_q &= Q(**{f"{field_name}__icontains": term})
+
                 if field.choices:
                     matched_values = [
                         val
@@ -139,17 +240,6 @@ class CustomModelViewSet(viewsets.ModelViewSet):
                         if any(term.lower() in label.lower() for term in search_terms)
                     ]
                     search_q &= Q(**{f"{field_name}__in": matched_values})
-                if field.is_relation:
-                    rel_model = field.related_model
-                    char_fields = [
-                        f.name
-                        for f in rel_model._meta.get_fields()
-                        if isinstance(f, CharField)
-                    ]
-                    for term in search_terms:
-                        for rel_char in char_fields:
-                            lookup = f"{field.name}__{rel_char}__icontains"
-                            search_q |= Q(**{lookup: term})
             elif "__not_" in key:
                 actual_key = key.replace("__not_", "__")
                 if actual_key.endswith("__in"):
@@ -184,26 +274,6 @@ class CustomModelViewSet(viewsets.ModelViewSet):
         if check_last_updated:
             queryset = queryset.filter(updated_at__gte=last_updated)
             return response.Response({"count": len(queryset)})
-
-        if page_param == "all":
-            all_queryset = list(queryset)
-            serializer = self.get_serializer(all_queryset, many=True)
-
-            return response.Response(
-                {
-                    "count": len(all_queryset),
-                    "current_page": 1,
-                    "total_pages": 1,
-                    "next": None,
-                    "previous": None,
-                    "ids": [
-                        item.get("id")
-                        for item in serializer.data
-                        if isinstance(item, dict)
-                    ],
-                    "results": serializer.data,
-                }
-            )
 
         queryset = self.paginate_queryset(queryset)
         if queryset is not None:

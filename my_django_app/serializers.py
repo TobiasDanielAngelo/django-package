@@ -7,6 +7,8 @@ import inspect
 from . import fields
 from django.db import models
 import typing
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=255)
@@ -93,52 +95,82 @@ class UserSerializer(serializers.ModelSerializer):
 
 class CustomSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+
     def get_display_name(self, obj):
         return str(obj)
 
     def get_fields(self):
         fields = super().get_fields()
-        model = getattr(self.Meta, 'model', None)
+        model = getattr(self.Meta, "model", None)
         reverse_fields = {
             rel.get_accessor_name()
             for rel in model._meta.get_fields()
-            if (rel.one_to_many or rel.one_to_one) and rel.auto_created and not rel.concrete
+            if (rel.one_to_many or rel.one_to_one)
+            and rel.auto_created
+            and not rel.concrete
         }
         denylist = {
-            "Meta", "DoesNotExist", "MultipleObjectsReturned",
-            "save_base", "asave", "adelete", "check", "clean_fields",
-            "from_db", "prepare_database_save", "unique_error_message",
-            "validate_constraints", "get_constraints", "arefresh_from_db",
-            "date_error_message", "get_next_by_created_at", "get_previous_by_created_at",
-                "clean", "save", "full_clean", "validate_unique", "delete",
-                "refresh_from_db", "get_next_by_updated_at", "get_previous_by_updated_at",
-                "get_deferred_fields", "serializable_value", 
+            "Meta",
+            "DoesNotExist",
+            "MultipleObjectsReturned",
+            "save_base",
+            "asave",
+            "adelete",
+            "check",
+            "clean_fields",
+            "from_db",
+            "prepare_database_save",
+            "unique_error_message",
+            "validate_constraints",
+            "get_constraints",
+            "arefresh_from_db",
+            "date_error_message",
+            "get_next_by_created_at",
+            "get_previous_by_created_at",
+            "clean",
+            "save",
+            "full_clean",
+            "validate_unique",
+            "delete",
+            "refresh_from_db",
+            "get_next_by_updated_at",
+            "get_previous_by_updated_at",
+            "get_deferred_fields",
+            "serializable_value",
         }
         rejected_attrs = []
+
         if model:
             model_instance = model()
             for attr in dir(model_instance):
-                if attr.startswith("get_") and attr.endswith("_display"):
-                    rejected_attrs.append(attr)
-                    continue
-                if attr.startswith("_"):
-                    rejected_attrs.append(attr)
-                    continue
-                if attr in fields:
-                    rejected_attrs.append(attr)
-                    continue
-                method = getattr(model, attr, None)
-                if not callable(method):
-                    rejected_attrs.append(attr)
-                    continue
-                if hasattr(method, '__self__') and isinstance(method.__self__, models.Field):
-                    rejected_attrs.append(attr) 
-                    continue
-                if attr in denylist or attr in reverse_fields:
-                    rejected_attrs.append(attr)
-                    continue
-                fields[attr] = serializers.SerializerMethodField()
-
+                class_attr = getattr(model, attr, None)
+                if (
+                    isinstance(class_attr, property)
+                    and attr not in fields
+                    and attr != "pk"
+                ):
+                    fields[attr] = serializers.ReadOnlyField()
+                # if attr.startswith("get_") and attr.endswith("_display"):
+                #     rejected_attrs.append(attr)
+                #     continue
+                # if attr.startswith("_"):
+                #     rejected_attrs.append(attr)
+                #     continue
+                # if attr in fields:
+                #     rejected_attrs.append(attr)
+                #     continue
+                # method = getattr(model, attr, None)
+                # if not callable(method):
+                #     print(attr)
+                #     rejected_attrs.append(attr)
+                #     continue
+                # if hasattr(method, '__self__') and isinstance(method.__self__, models.Field):
+                #     rejected_attrs.append(attr)
+                #     continue
+                # if attr in denylist or attr in reverse_fields:
+                #     rejected_attrs.append(attr)
+                #     continue
+                # fields[attr] = serializers.SerializerMethodField()
 
                 def make_method(name):
                     return lambda self, obj: getattr(obj, name)()
@@ -149,6 +181,26 @@ class CustomSerializer(serializers.ModelSerializer):
         # print(rejected_attrs)
         return fields
 
+    def validate(self, attrs):
+        model_class = self.Meta.model
+
+        # Start from existing instance or create a new one
+        instance = self.instance or model_class()
+
+        # Apply attrs to instance (including M2M)
+        for key, value in attrs.items():
+            (
+                setattr(instance, f"_prefetched_{key}", value)
+                if hasattr(value, "__iter__") and not isinstance(value, str)
+                else setattr(instance, key, value)
+            )
+
+        try:
+            instance.clean()
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(e.message_dict)
+
+        return attrs
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -164,7 +216,6 @@ class CustomSerializer(serializers.ModelSerializer):
                 model = m
                 break
 
-
         if model:
             # Define Meta dynamically
             meta_class = type(
@@ -177,9 +228,10 @@ class CustomSerializer(serializers.ModelSerializer):
             )
             cls.Meta = meta_class
 
+
 def auto_create_serializers(models, excluded_models=None):
 
-    frame = inspect.stack()[1]  
+    frame = inspect.stack()[1]
     caller_module = inspect.getmodule(frame[0])
     target_module = caller_module.__name__
 

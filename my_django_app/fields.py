@@ -6,6 +6,7 @@ from django import forms
 from datetime import datetime, time
 import re
 import inflect
+from django.db.models import BooleanField
 
 
 class AmountField(models.DecimalField):
@@ -338,8 +339,8 @@ class CascadeRequiredForeignKey(ForeignKey):
     Required ForeignKey with CASCADE delete and auto related_name.
     """
 
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("on_delete", models.CASCADE)
         super().__init__(to, *args, **kwargs)
 
@@ -349,8 +350,8 @@ class CascadeOptionalForeignKey(ForeignKey):
     Optional ForeignKey with CASCADE delete and auto related_name.
     """
 
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("on_delete", models.CASCADE)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -362,8 +363,8 @@ class SetNullOptionalForeignKey(ForeignKey):
     Optional ForeignKey with SET_NULL delete and auto related_name.
     """
 
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("on_delete", models.SET_NULL)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
@@ -412,8 +413,8 @@ class OneToOneField(models.OneToOneField):
 
 
 class OptionalOneToOneField(OneToOneField):
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         kwargs.setdefault("on_delete", models.CASCADE)
@@ -421,8 +422,8 @@ class OptionalOneToOneField(OneToOneField):
 
 
 class OptionalSetNullOneToOneField(OneToOneField):
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("null", True)
         kwargs.setdefault("blank", True)
         kwargs.setdefault("on_delete", models.SET_NULL)
@@ -430,8 +431,8 @@ class OptionalSetNullOneToOneField(OneToOneField):
 
 
 class OneToOneField(OneToOneField):
-    def __init__(self, to, display=False, *args, **kwargs):
-        self.display = display
+    def __init__(self, to, *args, **kwargs):
+        self.display = kwargs.get("display", False)
         kwargs.setdefault("on_delete", models.CASCADE)
         super().__init__(to, *args, **kwargs)
 
@@ -760,17 +761,125 @@ class CustomModel(models.Model, metaclass=CustomModelMeta):
     updated_at = AutoUpdatedAtField()
 
     def __str__(self):
-        display_fields = [
-            str(getattr(self, field.name))
-            for field in self._meta.fields
-            if getattr(field, "display", False)
-        ]
-        return " - ".join(display_fields) if display_fields else super().__str__()
+        display_fields = []
+        for field in self._meta.get_fields():
+            if isinstance(field, ManyToManyField):
+                if field.related_model == self.__class__:
+                    continue
+                related_qs = getattr(self, field.name).all()
+                display_fields.append(", ".join(str(obj) for obj in related_qs[0:5]))
+                if len(related_qs) > 5:
+                    display_fields.append("...")
+            if getattr(field, "display", False):
+                val = getattr(self, field.name)
+                if val is not None:
+                    if isinstance(field, BooleanField):
+                        if val:
+                            if field.name.lower().startswith("is"):
+                                title = field.name[2:]  # remove first two chars
+                                title_cased = title.replace("_", " ").strip().title()
+                                display_fields.append(title_cased)
+                        else:
+                            continue
+                    elif isinstance(field, ChoiceIntegerField):
+                        display_fields.append(
+                            getattr(self, f"get_{field.name}_display")()
+                        )
+                    else:
+                        display_fields.append(str(val))
+        if display_fields:
+            return " ".join(display_fields)
+        else:
+            return f"{self.__class__.__name__} # {self.pk}"
+
+    def delete(self, *args, **kwargs):
+        if self.pk < 0:
+            raise Exception("This item is read-only and cannot be deleted.")
+        super().delete(*args, **kwargs)
+
+    def touch(self):
+        """Force update of updated_at without changing other fields."""
+        self.updated_at = timezone.now()
+        super().save(update_fields=["updated_at"])
+
+    def clean(self):
+        super().clean()
+        # Auto-check any self-FK field for recursion
+        for field in self._meta.fields:
+            if (
+                isinstance(field, models.ForeignKey)
+                and field.related_model == self.__class__
+            ):
+                parent = getattr(self, field.name)
+                if parent and parent.pk == self.pk:
+                    raise ValidationError(
+                        {field.name: "The self cannot be its own parent."}
+                    )
+
+                # Deep loop detection
+                seen = {self.pk}
+                while parent:
+                    if parent.pk in seen:
+                        raise ValidationError(
+                            {field.name: "The child cannot be its own parent."}
+                        )
+                    seen.add(parent.pk)
+                    parent = getattr(parent, field.name, None)
 
     class Meta:
         abstract = True
 
+
+class ImmutableModel(models.Model):
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            self.__class__.objects.filter(pk=self.pk).update(is_active=False)
+            self.pk = None
+        return super().save(*args, **kwargs)
+
     def delete(self, *args, **kwargs):
-        if self.pk > 1000000:
-            raise Exception("This item is read-only and cannot be deleted.")
-        super().delete(*args, **kwargs)
+        raise NotImplementedError(
+            f"{self.__class__.__name__} instances cannot be deleted."
+        )
+
+
+from django.db import models
+from django.utils import timezone
+
+
+class SoftDeleteQuerySet(models.QuerySet):
+    def delete(self):
+        return super().update(deleted_at=timezone.now())
+
+    def hard_delete(self):
+        return super().delete()
+
+    def alive(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def dead(self):
+        return self.filter(deleted_at__isnull=False)
+
+
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).alive()
+
+
+class SoftDeleteModel(models.Model):
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = SoftDeleteManager()  # Default: only alive
+    all_objects = models.Manager()  # Can see everything
+
+    class Meta:
+        abstract = True
+
+    def delete(self, using=None, keep_parents=False):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
