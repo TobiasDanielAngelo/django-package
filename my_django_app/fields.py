@@ -4,9 +4,10 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django import forms
 from datetime import datetime, time
+from django.utils import timezone, formats
 import re
 import inflect
-from django.db.models import BooleanField
+from django.db.models import BooleanField, DateField, DateTimeField
 
 
 class AmountField(models.DecimalField):
@@ -731,12 +732,16 @@ class ChoicesNumberArrayField(BaseArrayField):
 class FileField(models.FileField):
     def __init__(self, upload_to, display=False, *args, **kwargs):
         self.display = display
+        kwargs.setdefault("null", True)
+        kwargs.setdefault("blank", True)
         super().__init__(upload_to=upload_to, *args, **kwargs)
 
 
 class ImageField(models.FileField):
     def __init__(self, upload_to, display=False, *args, **kwargs):
         self.display = display
+        kwargs.setdefault("null", True)
+        kwargs.setdefault("blank", True)
         super().__init__(upload_to=upload_to, *args, **kwargs)
 
 
@@ -784,6 +789,21 @@ class CustomModel(models.Model, metaclass=CustomModelMeta):
                     elif isinstance(field, ChoiceIntegerField):
                         display_fields.append(
                             getattr(self, f"get_{field.name}_display")()
+                        )
+                    elif isinstance(field, DateTimeField):
+                        local_val = (
+                            timezone.localtime(val)
+                            if timezone.is_aware(val)
+                            else timezone.make_aware(val)
+                        )
+                        display_fields.append(
+                            formats.date_format(local_val, "DATETIME_FORMAT")
+                        )
+                    elif isinstance(field, DateField):
+                        dt = datetime.combine(val, datetime.time.min)  # midnight
+                        aware_dt = timezone.make_aware(dt)  # now timezone-aware
+                        display_fields.append(
+                            formats.date_format(aware_dt, "DATE_FORMAT")
                         )
                     else:
                         display_fields.append(str(val))

@@ -40,13 +40,15 @@ class CustomPagination(PageNumberPagination):
                 field_name = field.name
                 values = set()
 
-                if field.is_relation and (field.many_to_one or field.many_to_many):
+                if field.is_relation and (
+                    field.many_to_one or field.many_to_many or field.one_to_one
+                ):
                     related_fields.append(to_camel_case(field.name))
                     for obj in objects:
                         value = getattr(obj, field_name, None)
                         if not value:
                             continue
-                        if field.many_to_one:
+                        if field.many_to_one or field.one_to_one:
                             values.add(value)
                         elif field.many_to_many:
                             values.update(value.all())
