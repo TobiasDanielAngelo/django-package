@@ -12,11 +12,11 @@ import os
 from django.http import JsonResponse
 from .viewsets import CustomAuthentication
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.middleware.csrf import get_token
 
 
-@ensure_csrf_cookie
 def csrf(request):
-    return JsonResponse({"detail": "CSRF cookie set"})
+    return JsonResponse({"csrfToken": get_token(request)})
 
 
 class CustomAPIView(APIView):
