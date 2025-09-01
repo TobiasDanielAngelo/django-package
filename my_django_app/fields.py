@@ -29,15 +29,7 @@ class LimitedIntegerField(models.IntegerField):
         LimitedIntegerField(5)           # min=5, no max
     """
 
-    def __init__(
-        self,
-        min_value=-10000000,
-        max_value=100000000,
-        default_value=0,
-        display=False,
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, *args, display=False, **kwargs):
         self.display = display
         validators = kwargs.pop("validators", [])
 
@@ -800,7 +792,7 @@ class CustomModel(models.Model, metaclass=CustomModelMeta):
                             formats.date_format(local_val, "DATETIME_FORMAT")
                         )
                     elif isinstance(field, DateField):
-                        dt = datetime.combine(val, datetime.time.min)  # midnight
+                        dt = datetime.combine(val, time.min)  # midnight
                         aware_dt = timezone.make_aware(dt)  # now timezone-aware
                         display_fields.append(
                             formats.date_format(aware_dt, "DATE_FORMAT")

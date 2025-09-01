@@ -7,7 +7,7 @@ A reusable Django app for [brief description, e.g., "managing custom user roles"
 ## 📦 Installation
 
 ```bash
-poetry add git+https://github.com/tobiasdanielangelo/my_django_app.git
+poetry add git+https://github.com/TobiasDanielAngelo/django-package.git
 ```
 
 ⚙️ Setup
