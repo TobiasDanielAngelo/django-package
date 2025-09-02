@@ -93,6 +93,7 @@ class CustomPagination(PageNumberPagination):
             "option_fields": option_fields,
             "date_fields": date_fields,
             "datetime_fields": datetime_fields,
+            "time_fields": time_fields,
             "price_fields": price_fields,
         }
 

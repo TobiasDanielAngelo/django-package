@@ -467,11 +467,8 @@ class LimitedDecimalField(models.DecimalField):
 
     def __init__(
         self,
-        min_value=-10000000,
-        max_value=100000000,
-        default_value=0,
-        display=False,
         *args,
+        display=False,
         **kwargs,
     ):
         self.display = display
